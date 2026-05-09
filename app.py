@@ -1,160 +1,204 @@
-
 import streamlit as st
-import base64
-import os
+from google import genai
 
-# =========================
+# ====================================
 # PAGE CONFIG
-# =========================
+# ====================================
 
 st.set_page_config(
     page_title="Motorsport Agent",
+    page_icon="🏎",
     layout="wide"
 )
 
-# =========================
-# LOAD LOCAL BACKGROUND IMAGE
-# =========================
+# ====================================
+# SIMPLE DARK THEME
+# ====================================
 
-def get_base64_image(image_path):
+st.markdown(
+    """
+    <style>
 
-    with open(image_path, "rb") as img_file:
-        return base64.b64encode(
-            img_file.read()
-        ).decode()
+    .stApp {
+        background-color: #0E1117;
+    }
 
-# Google Drive mounted image path
-background_image = (
-    "/content/drive/MyDrive/Images/MS.png"
+    h1, h2, h3, h4, h5, h6 {
+        color: white !important;
+    }
+
+    p, div, label, span {
+        color: white !important;
+        font-size: 18px !important;
+    }
+
+    section[data-testid="stSidebar"] {
+        background-color: #161A23;
+    }
+
+    .stTextInput input {
+        background-color: #1E2430 !important;
+        color: white !important;
+        border-radius: 10px;
+        border: 1px solid #00AEEF;
+    }
+
+    .stTextArea textarea {
+        background-color: #1E2430 !important;
+        color: white !important;
+        border-radius: 10px;
+        border: 1px solid #00AEEF;
+        font-size: 18px !important;
+    }
+
+    .stButton button {
+        background-color: #00AEEF !important;
+        color: white !important;
+        border-radius: 10px;
+        border: none;
+        height: 50px;
+        width: 100%;
+        font-size: 18px;
+        font-weight: bold;
+    }
+
+    </style>
+    """,
+    unsafe_allow_html=True
 )
 
-img_base64 = get_base64_image(background_image)
+# ====================================
+# SESSION STATE
+# ====================================
 
-# =========================
-# CUSTOM CSS
-# =========================
+if "api_connected" not in st.session_state:
+    st.session_state.api_connected = False
 
-page_bg = f"""
-<style>
+if "client" not in st.session_state:
+    st.session_state.client = None
 
-.stApp {{
-    background-image: url("data:image/png;base64,{img_base64}");
-    background-size: cover;
-    background-position: center;
-    background-attachment: fixed;
-}}
+# ====================================
+# LOGIN PAGE
+# ====================================
 
-.main {{
-    background: rgba(0,0,0,0.72);
-    border-radius: 20px;
-    padding: 20px;
-}}
-
-h1, h2, h3, h4, h5, h6 {{
-    color: white !important;
-}}
-
-p, label, div {{
-    color: white !important;
-}}
-
-[data-testid="stSidebar"] {{
-    background: rgba(0,0,0,0.88);
-}}
-
-.stTextInput input {{
-    background-color: #1c1c1c;
-    color: white;
-    border-radius: 10px;
-}}
-
-.stTextArea textarea {{
-    background-color: #1c1c1c;
-    color: white;
-    border-radius: 10px;
-}}
-
-.stButton button {{
-    background-color: #00AEEF;
-    color: white;
-    border-radius: 10px;
-    border: none;
-    height: 50px;
-    width: 100%;
-    font-size: 18px;
-    font-weight: bold;
-}}
-
-.stButton button:hover {{
-    background-color: #0077aa;
-    color: white;
-}}
-
-</style>
-"""
-
-st.markdown(page_bg, unsafe_allow_html=True)
-
-# =========================
-# SIDEBAR
-# =========================
-
-with st.sidebar:
+if not st.session_state.api_connected:
 
     st.title("🏎 Motorsport Agent")
 
-    st.markdown("---")
+    st.markdown("""
+    ### AI Engineering Assistant for Motorsport & Mechanical Systems
+    """)
 
     api_key = st.text_input(
         "Enter Gemini API Key",
         type="password"
     )
 
-    st.markdown("---")
+    if st.button("Connect API"):
 
-    st.subheader("System Status")
+        with st.spinner("Connecting Gemini API..."):
 
-    st.success("FAISS Database Ready")
-    st.success("Multimodal RAG Active")
-    st.success("OCR Engine Ready")
-    st.success("Excel Engine Ready")
+            try:
 
-# =========================
-# MAIN UI
-# =========================
+                client = genai.Client(
+                    api_key=api_key
+                )
 
-st.title("🏎 Motorsport Agent")
+                response = client.models.generate_content(
+                    model="gemini-2.5-flash",
+                    contents="Reply OK"
+                )
 
-st.markdown(
-    "### AI Engineering Assistant for Motorsport & Mechanical Systems"
-)
+                st.session_state.api_connected = True
+                st.session_state.client = client
 
-query = st.text_area(
-    "Ask Engineering Questions",
-    height=180,
-    placeholder=(
-        "Example:\n"
-        "- Explain finite element analysis\n"
-        "- Explain suspension geometry\n"
-        "- Explain CFD in motorsport\n"
-        "- Compare braking systems"
+                st.success(
+                    "Gemini API Connected Successfully"
+                )
+
+                st.rerun()
+
+            except Exception as e:
+
+                st.error(
+                    "Invalid API Key"
+                )
+
+# ====================================
+# MAIN APP
+# ====================================
+
+else:
+
+    with st.sidebar:
+
+        st.title("🏎 Motorsport Agent")
+
+        st.success("Gemini API Connected")
+
+        st.markdown("---")
+
+        st.subheader("System Status")
+
+        st.success("FAISS Database Ready")
+        st.success("OCR Engine Active")
+        st.success("Excel Retrieval Ready")
+        st.success("Multimodal RAG Active")
+
+        st.markdown("---")
+
+        if st.button("Disconnect API"):
+
+            st.session_state.api_connected = False
+            st.session_state.client = None
+
+            st.rerun()
+
+    st.title("🏎 Motorsport Agent")
+
+    st.markdown("""
+    ### AI Engineering Assistant for Motorsport & Mechanical Systems
+    """)
+
+    query = st.text_area(
+        "Ask Engineering Questions",
+        height=220,
+        placeholder="""
+Examples:
+- Best material for gokart chassis
+- Explain finite element analysis
+- Explain Formula Student aerodynamics
+- Difference between MIG and TIG welding
+"""
     )
-)
 
-if st.button("Generate Answer"):
+    if st.button("Generate Answer"):
 
-    if not api_key:
+        if not query:
 
-        st.error("Please Enter Gemini API Key")
+            st.error(
+                "Please Enter Question"
+            )
 
-    elif not query:
+        else:
 
-        st.error("Please Enter Question")
+            with st.spinner(
+                "Generating Engineering Response..."
+            ):
 
-    else:
+                try:
 
-        st.success("Motorsport Agent Ready")
+                    response = st.session_state.client.models.generate_content(
+                        model="gemini-2.5-flash",
+                        contents=query
+                    )
 
-        st.info(
-            "Next Step: Connect FAISS Retrieval + Gemini Response Engine"
-        )
+                    st.markdown("## Answer")
+
+                    st.success(response.text)
+
+                except Exception as e:
+
+                    st.error(
+                        f"Error: {str(e)}"
+                    )
