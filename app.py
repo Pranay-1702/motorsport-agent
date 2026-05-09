@@ -24,11 +24,13 @@ FAISS_FILE_ID = "1qDBPT1D2OgAVtDmx6aRfwb46Y3vDlRMs"
 METADATA_FILE_ID = "1YS-isyzMNxFgcbVIKcku2KO3pKgaTrwe"
 
 # =====================================================
-# DOWNLOAD FILES
+# DOWNLOAD FILES FROM GOOGLE DRIVE
 # =====================================================
 
 if not os.path.exists("final_faiss.index"):
+
     with st.spinner("Downloading FAISS database..."):
+
         gdown.download(
             id=FAISS_FILE_ID,
             output="final_faiss.index",
@@ -36,7 +38,9 @@ if not os.path.exists("final_faiss.index"):
         )
 
 if not os.path.exists("metadata.pkl"):
-    with st.spinner("Downloading metadata..."):
+
+    with st.spinner("Downloading metadata database..."):
+
         gdown.download(
             id=METADATA_FILE_ID,
             output="metadata.pkl",
@@ -44,7 +48,7 @@ if not os.path.exists("metadata.pkl"):
         )
 
 # =====================================================
-# LOAD DATABASE
+# LOAD FAISS DATABASE
 # =====================================================
 
 index = faiss.read_index("final_faiss.index")
@@ -62,7 +66,7 @@ st.sidebar.success("FAISS Database Loaded")
 st.sidebar.success(f"Vectors Loaded: {index.ntotal}")
 
 # =====================================================
-# API KEY SECTION
+# GEMINI API SECTION
 # =====================================================
 
 st.sidebar.subheader("Gemini API Key")
@@ -74,9 +78,14 @@ api_key = st.sidebar.text_input(
 
 api_connected = False
 
+# =====================================================
+# CONNECT BUTTON
+# =====================================================
+
 if st.sidebar.button("Connect API"):
 
     try:
+
         client = genai.Client(api_key=api_key)
 
         test = client.models.generate_content(
@@ -85,22 +94,29 @@ if st.sidebar.button("Connect API"):
         )
 
         st.session_state["api_key"] = api_key
+
         st.sidebar.success("Gemini API Connected Successfully")
+
         api_connected = True
 
     except Exception as e:
+
         st.sidebar.error(f"API Error: {e}")
 
 # =====================================================
-# RESTORE API
+# RESTORE SESSION
 # =====================================================
 
 if "api_key" in st.session_state:
-    client = genai.Client(api_key=st.session_state["api_key"])
+
+    client = genai.Client(
+        api_key=st.session_state["api_key"]
+    )
+
     api_connected = True
 
 # =====================================================
-# MAIN UI
+# MAIN TITLE
 # =====================================================
 
 st.title("🏎️ Motorsport SAE RAG Assistant")
@@ -121,6 +137,10 @@ st.markdown("""
 - FEA & CFD
 """)
 
+# =====================================================
+# USER QUESTION
+# =====================================================
+
 question = st.text_area(
     "Ask Your Engineering Question",
     height=150
@@ -133,8 +153,8 @@ question = st.text_area(
 def get_query_embedding(client, text):
 
     response = client.models.embed_content(
-        model="text-embedding-004",
-        contents=text
+        model="models/text-embedding-004",
+        contents=[text]
     )
 
     embedding = response.embeddings[0].values
@@ -142,14 +162,20 @@ def get_query_embedding(client, text):
     return np.array([embedding], dtype=np.float32)
 
 # =====================================================
-# SEARCH FUNCTION
+# SEARCH DOCUMENTS
 # =====================================================
 
 def search_documents(client, query, top_k=5):
 
-    query_embedding = get_query_embedding(client, query)
+    query_embedding = get_query_embedding(
+        client,
+        query
+    )
 
-    distances, indices = index.search(query_embedding, top_k)
+    distances, indices = index.search(
+        query_embedding,
+        top_k
+    )
 
     retrieved_chunks = []
 
@@ -178,53 +204,44 @@ def search_documents(client, query, top_k=5):
 def generate_answer(client, question, context):
 
     engineering_prompt = f"""
-You are an expert Motorsport Engineering AI Assistant specialized in:
+You are an expert AI Motorsport Engineering Assistant.
 
+You help students participating in:
 - Formula SAE
 - Baja SAE
 - Formula Student
-- Race Car Design
-- Chassis Engineering
-- Suspension Design
-- Aerodynamics
-- Steering Systems
-- Braking Systems
-- Powertrain
-- Vehicle Dynamics
-- CAD/CAE
-- FEA/CFD
-- Manufacturing
 
-Your users are engineering students building SAE competition vehicles.
+Your job is to provide:
+- Engineering explanations
+- Practical design guidance
+- Real-world motorsport knowledge
+- SAE vehicle design suggestions
+- Manufacturing recommendations
+- Component selection guidance
+- CAD / CAE / FEA / CFD support
+- Vehicle dynamics explanations
 
-Your job is to:
-1. Explain concepts clearly.
-2. Give practical engineering guidance.
-3. Help students design real systems.
-4. Recommend materials/components when appropriate.
-5. Explain calculations simply.
-6. Provide design considerations and best practices.
-7. Answer in detailed but student-friendly language.
-
-IMPORTANT:
+IMPORTANT RULES:
 - Use ONLY the engineering knowledge provided below.
-- If information is insufficient, say:
-  "The database does not contain enough information for a complete engineering answer."
+- If information is insufficient, clearly say so.
+- Explain answers in student-friendly language.
+- Give practical engineering guidance.
+- Be detailed and technical when necessary.
 
 ==================================================
-ENGINEERING KNOWLEDGE:
+ENGINEERING KNOWLEDGE
 ==================================================
 
 {context}
 
 ==================================================
-QUESTION:
+QUESTION
 ==================================================
 
 {question}
 
 ==================================================
-ANSWER:
+ENGINEERING ANSWER
 ==================================================
 """
 
@@ -236,18 +253,24 @@ ANSWER:
     return response.text
 
 # =====================================================
-# MAIN BUTTON
+# GENERATE BUTTON
 # =====================================================
 
 if st.button("Generate Engineering Answer"):
 
     if not api_connected:
+
         st.error("Please connect Gemini API first.")
 
     elif question.strip() == "":
+
         st.warning("Please enter a question.")
 
     else:
+
+        # =============================================
+        # SEARCH
+        # =============================================
 
         with st.spinner("Searching engineering database..."):
 
@@ -259,6 +282,10 @@ if st.button("Generate Engineering Answer"):
 
             context = "\n\n".join(retrieved_chunks)
 
+        # =============================================
+        # GENERATE RESPONSE
+        # =============================================
+
         with st.spinner("Generating engineering answer..."):
 
             answer = generate_answer(
@@ -267,9 +294,17 @@ if st.button("Generate Engineering Answer"):
                 context
             )
 
+        # =============================================
+        # SHOW ANSWER
+        # =============================================
+
         st.subheader("Engineering Answer")
 
         st.write(answer)
+
+        # =============================================
+        # SHOW RETRIEVED CHUNKS
+        # =============================================
 
         with st.expander("Retrieved Engineering Chunks"):
 
