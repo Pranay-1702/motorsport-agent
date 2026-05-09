@@ -89,7 +89,7 @@ if connect_btn:
         client = genai.Client(api_key=api_key)
 
         test_response = client.models.generate_content(
-            model="gemini-2.0-flash",
+            model="gemini-2.5-flash",
             contents="hello"
         )
 
