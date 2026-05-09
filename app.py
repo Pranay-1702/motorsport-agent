@@ -11,8 +11,8 @@ from google import genai
 # GOOGLE DRIVE FILE IDS
 # ==========================================
 
-FAISS_FILE_ID = "https://drive.google.com/file/d/1qDBPT1D2OgAVtDmx6aRfwb46Y3vDlRMs/view?usp=sharing"
-METADATA_FILE_ID = "https://drive.google.com/file/d/1YS-isyzMNxFgcbVIKcku2KO3pKgaTrwe/view?usp=sharing"
+FAISS_FILE_ID = "https://drive.google.com/file/d/1qDBPT1D2OgAVtDmx6aRfwb46Y3vDlRMs/view?usp=drive_link"
+METADATA_FILE_ID = "https://drive.google.com/file/d/1YS-isyzMNxFgcbVIKcku2KO3pKgaTrwe/view?usp=drive_link"
 
 # ==========================================
 # DOWNLOAD DATABASE FILES
