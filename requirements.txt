@@ -1,8 +1,7 @@
 streamlit
 faiss-cpu
 numpy
-pickle-mixin
-sentence-transformers
-langchain-google-genai
-google-generativeai
 gdown
+sentence-transformers
+google-genai
+torch
