@@ -5,7 +5,6 @@ import faiss
 import numpy as np
 import gdown
 
-from sentence_transformers import SentenceTransformer
 from google import genai
 
 
@@ -34,6 +33,7 @@ st.markdown("""
 # =========================================================
 
 FAISS_FILE_ID = "1qDBPT1D2OgAVtDmx6aRfwb46Y3vDlRMs"
+
 METADATA_FILE_ID = "1YS-isyzMNxFgcbVIKcku2KO3pKgaTrwe"
 
 
@@ -99,37 +99,6 @@ st.sidebar.info(
 
 
 # =========================================================
-# LOAD EMBEDDING MODEL
-# =========================================================
-
-@st.cache_resource
-def load_embedding_model():
-
-    # 384 dimension
-    if index.d == 384:
-
-        model_name = "sentence-transformers/all-MiniLM-L6-v2"
-
-    # 768 dimension
-    elif index.d == 768:
-
-        model_name = "sentence-transformers/all-mpnet-base-v2"
-
-    else:
-
-        model_name = "sentence-transformers/all-mpnet-base-v2"
-
-    st.sidebar.success(
-        f"🧠 Embedding Model Loaded"
-    )
-
-    return SentenceTransformer(model_name)
-
-
-embedding_model = load_embedding_model()
-
-
-# =========================================================
 # GEMINI API KEY
 # =========================================================
 
@@ -165,20 +134,31 @@ except Exception as e:
 
 
 # =========================================================
+# GET QUERY EMBEDDING
+# =========================================================
+
+def get_query_embedding(text):
+
+    response = client.models.embed_content(
+        model="models/gemini-embedding-001",
+        contents=text
+    )
+
+    embedding = response.embeddings[0].values
+
+    return np.array(
+        [embedding],
+        dtype=np.float32
+    )
+
+
+# =========================================================
 # RETRIEVE DOCUMENTS
 # =========================================================
 
 def retrieve_documents(query, top_k=5):
 
-    query_embedding = embedding_model.encode(
-        [query],
-        convert_to_numpy=True
-    )
-
-    query_embedding = np.array(
-        query_embedding,
-        dtype=np.float32
-    )
+    query_embedding = get_query_embedding(query)
 
     distances, indices = index.search(
         query_embedding,
@@ -221,7 +201,7 @@ def retrieve_documents(query, top_k=5):
 
 
 # =========================================================
-# PROMPT TEMPLATE
+# BUILD PROMPT
 # =========================================================
 
 def build_prompt(question, retrieved_chunks):
@@ -310,46 +290,46 @@ if st.button("Generate Engineering Answer"):
 
             try:
 
-                # =========================================
-                # RETRIEVE CHUNKS
-                # =========================================
+                # =====================================
+                # RETRIEVE DOCUMENTS
+                # =====================================
 
                 retrieved_chunks = retrieve_documents(
                     question,
                     top_k=5
                 )
 
-                # =========================================
+                # =====================================
                 # BUILD PROMPT
-                # =========================================
+                # =====================================
 
                 prompt = build_prompt(
                     question,
                     retrieved_chunks
                 )
 
-                # =========================================
-                # GEMINI RESPONSE
-                # =========================================
+                # =====================================
+                # GENERATE ANSWER
+                # =====================================
 
                 response = client.models.generate_content(
-                    model="gemini-1.5-flash",
+                    model="gemini-2.5-flash",
                     contents=prompt
                 )
 
                 answer = response.text
 
-                # =========================================
+                # =====================================
                 # DISPLAY ANSWER
-                # =========================================
+                # =====================================
 
                 st.markdown("## Engineering Answer")
 
                 st.write(answer)
 
-                # =========================================
+                # =====================================
                 # SHOW RETRIEVED CHUNKS
-                # =========================================
+                # =====================================
 
                 with st.expander("Retrieved Engineering Knowledge"):
 
@@ -361,4 +341,4 @@ if st.button("Generate Engineering Answer"):
 
             except Exception as e:
 
-                st.error(f"Error: {e}")
+                st.error(f"Error: {str(e)}")
