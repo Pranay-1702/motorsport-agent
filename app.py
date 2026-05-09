@@ -5,9 +5,8 @@ import faiss
 import numpy as np
 import gdown
 
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain.schema import Document
 from sentence_transformers import SentenceTransformer
+from langchain_google_genai import ChatGoogleGenerativeAI
 
 # =========================================================
 # PAGE CONFIG
@@ -26,26 +25,25 @@ st.title("🏎️ Motorsport SAE RAG Assistant")
 
 st.caption("""
 AI Engineering Assistant for:
-- Formula SAE (FSAE)
-- Formula Bharat
+- Formula SAE
 - Baja SAE
-- EV Race Cars
+- Formula Bharat
 - Motorsport Engineering
 """)
 
 # =========================================================
-# GEMINI API KEY
+# API KEY
 # =========================================================
 
 api_key = st.text_input(
-    "🔑 Enter your Gemini API Key:",
+    "🔑 Enter Gemini API Key",
     type="password"
 )
 
 if not api_key:
 
     st.warning(
-        "Please enter your Gemini API key to continue"
+        "Please enter Gemini API Key"
     )
 
     st.stop()
@@ -98,7 +96,7 @@ def load_embedding_model():
 embedding_model = load_embedding_model()
 
 # =========================================================
-# LOAD FAISS + METADATA
+# LOAD FAISS DATABASE
 # =========================================================
 
 @st.cache_resource
@@ -117,6 +115,16 @@ def load_database():
 index, metadata = load_database()
 
 # =========================================================
+# SIDEBAR
+# =========================================================
+
+st.sidebar.success("✅ FAISS Database Loaded")
+
+st.sidebar.success(
+    f"📚 Engineering Chunks: {index.ntotal}"
+)
+
+# =========================================================
 # GEMINI MODEL
 # =========================================================
 
@@ -131,9 +139,7 @@ llm = ChatGoogleGenerativeAI(
 
 def retrieve_documents(query, top_k=5):
 
-    query_embedding = embedding_model.encode(
-        [query]
-    )
+    query_embedding = embedding_model.encode([query])
 
     query_embedding = np.array(
         query_embedding,
@@ -145,7 +151,7 @@ def retrieve_documents(query, top_k=5):
         top_k
     )
 
-    retrieved_docs = []
+    retrieved_chunks = []
 
     for idx in indices[0]:
 
@@ -153,120 +159,86 @@ def retrieve_documents(query, top_k=5):
 
             chunk = metadata[idx]
 
-            # =========================================
-            # HANDLE DIFFERENT METADATA STRUCTURES
-            # =========================================
-
             if isinstance(chunk, dict):
 
-                content = ""
-
                 if "content" in chunk:
-                    content = chunk["content"]
+
+                    text = chunk["content"]
 
                 elif "text" in chunk:
-                    content = chunk["text"]
+
+                    text = chunk["text"]
 
                 elif "page_content" in chunk:
-                    content = chunk["page_content"]
+
+                    text = chunk["page_content"]
 
                 else:
-                    content = str(chunk)
 
-                metadata_info = {
-                    "file_name": chunk.get(
-                        "file_name",
-                        "Engineering Source"
-                    ),
-                    "page": chunk.get(
-                        "page",
-                        "-"
-                    )
-                }
+                    text = str(chunk)
 
             else:
 
-                content = str(chunk)
+                text = str(chunk)
 
-                metadata_info = {
-                    "file_name": "Engineering Source",
-                    "page": "-"
-                }
+            retrieved_chunks.append(text)
 
-            retrieved_docs.append(
-                Document(
-                    page_content=content,
-                    metadata=metadata_info
-                )
-            )
-
-    return retrieved_docs
+    return retrieved_chunks
 
 # =========================================================
 # PROMPT BUILDER
 # =========================================================
 
-def build_prompt(query, docs):
-
-    context = "\n\n".join(
-        [doc.page_content for doc in docs]
-    )
+def build_prompt(query, context):
 
     prompt = f"""
 You are an expert Motorsport Engineering AI Assistant.
 
-You help engineering students participating in:
-
-- Formula SAE (FSAE)
-- Formula Bharat
+You help students participating in:
+- Formula SAE
 - Baja SAE
+- Formula Bharat
 - Electric SAE
 - Go-Kart competitions
 
 You specialize in:
 - Chassis Design
-- Suspension Systems
+- Suspension Design
 - Steering Systems
 - Braking Systems
 - Aerodynamics
 - Vehicle Dynamics
 - Powertrain
-- Manufacturing
 - CAD / CAE
 - FEA / CFD
+- Manufacturing
 - Materials Engineering
 
 ==================================================
 IMPORTANT INSTRUCTIONS
 ==================================================
 
-1. Give practical engineering answers.
+1. Give practical engineering guidance.
 
 2. Explain concepts in student-friendly language.
 
-3. Use proper engineering terminology.
+3. Use engineering terminology.
 
-4. If formulas are needed:
-   - explain variables
-   - explain engineering meaning
-   - explain why formula is used
+4. Give real-world SAE recommendations.
 
-5. Give real-world SAE design guidance.
-
-6. Mention:
+5. Mention:
    - manufacturability
    - safety
-   - reliability
    - lightweight design
-   - cost-effectiveness
+   - reliability
+   - cost effectiveness
 
-7. If applicable provide:
-   - material suggestions
-   - manufacturing methods
-   - design recommendations
-   - common mistakes to avoid
+6. If formulas are used:
+   - explain variables
+   - explain meaning
+   - explain application
 
-8. Use ONLY the provided engineering knowledge.
+7. Use ONLY the engineering knowledge provided below.
 
 ==================================================
 ENGINEERING KNOWLEDGE
@@ -296,7 +268,7 @@ if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
 # =========================================================
-# USER INPUT
+# CHAT INPUT
 # =========================================================
 
 query = st.chat_input(
@@ -310,17 +282,21 @@ query = st.chat_input(
 if query:
 
     with st.spinner(
-        "🔍 Searching engineering knowledge base..."
+        "🔍 Searching engineering database..."
     ):
 
-        docs = retrieve_documents(
+        retrieved_chunks = retrieve_documents(
             query,
             top_k=5
         )
 
+        context = "\n\n".join(
+            retrieved_chunks
+        )
+
         prompt = build_prompt(
             query,
-            docs
+            context
         )
 
     with st.spinner(
@@ -332,14 +308,14 @@ if query:
         answer = response.content
 
     st.session_state.chat_history.append(
-        (query, answer, docs)
+        (query, answer, retrieved_chunks)
     )
 
 # =========================================================
 # DISPLAY CHAT
 # =========================================================
 
-for q, a, docs in st.session_state.chat_history:
+for q, a, chunks in st.session_state.chat_history:
 
     with st.chat_message("user"):
 
@@ -349,13 +325,16 @@ for q, a, docs in st.session_state.chat_history:
 
         st.write(a)
 
-        st.markdown(
-            "### 📚 Engineering Sources"
-        )
+        with st.expander(
+            "📚 Retrieved Engineering Chunks"
+        ):
 
-        for doc in docs[:3]:
+            for i, chunk in enumerate(chunks[:3]):
 
-            st.write(
-                f"• {doc.metadata.get('file_name', 'Engineering Source')} "
-                f"(Page {doc.metadata.get('page', '-')})"
-            )
+                st.markdown(
+                    f"### Chunk {i+1}"
+                )
+
+                st.write(chunk)
+
+                st.markdown("---")
