@@ -6,57 +6,36 @@ import numpy as np
 import gdown
 
 from sentence_transformers import SentenceTransformer
-from langchain_google_genai import ChatGoogleGenerativeAI
+from google import genai
+
 
 # =========================================================
 # PAGE CONFIG
 # =========================================================
 
 st.set_page_config(
-    page_title="Motorsport SAE RAG Assistant",
+    page_title="Motorsport SAE RAG",
     layout="wide"
 )
 
-# =========================================================
-# TITLE
-# =========================================================
-
 st.title("🏎️ Motorsport SAE RAG Assistant")
 
-st.caption("""
-AI Engineering Assistant for:
-- Formula SAE
+st.markdown("""
+### AI Assistant for:
+- Formula Student
 - Baja SAE
 - Formula Bharat
 - Motorsport Engineering
 """)
 
-# =========================================================
-# API KEY
-# =========================================================
-
-api_key = st.text_input(
-    "🔑 Enter Gemini API Key",
-    type="password"
-)
-
-if not api_key:
-
-    st.warning(
-        "Please enter Gemini API Key"
-    )
-
-    st.stop()
-
-os.environ["GOOGLE_API_KEY"] = api_key
 
 # =========================================================
 # GOOGLE DRIVE FILE IDS
 # =========================================================
 
 FAISS_FILE_ID = "1qDBPT1D2OgAVtDmx6aRfwb46Y3vDlRMs"
-
 METADATA_FILE_ID = "1YS-isyzMNxFgcbVIKcku2KO3pKgaTrwe"
+
 
 # =========================================================
 # DOWNLOAD DATABASE FILES
@@ -64,39 +43,27 @@ METADATA_FILE_ID = "1YS-isyzMNxFgcbVIKcku2KO3pKgaTrwe"
 
 if not os.path.exists("final_faiss.index"):
 
-    st.info("📥 Downloading FAISS Database...")
+    with st.spinner("Downloading FAISS Database..."):
 
-    gdown.download(
-        id=FAISS_FILE_ID,
-        output="final_faiss.index",
-        quiet=False
-    )
+        gdown.download(
+            id=FAISS_FILE_ID,
+            output="final_faiss.index",
+            quiet=False
+        )
 
 if not os.path.exists("metadata.pkl"):
 
-    st.info("📥 Downloading Metadata Database...")
+    with st.spinner("Downloading Metadata..."):
 
-    gdown.download(
-        id=METADATA_FILE_ID,
-        output="metadata.pkl",
-        quiet=False
-    )
+        gdown.download(
+            id=METADATA_FILE_ID,
+            output="metadata.pkl",
+            quiet=False
+        )
 
-# =========================================================
-# LOAD EMBEDDING MODEL
-# =========================================================
-
-@st.cache_resource
-def load_embedding_model():
-
-    return SentenceTransformer(
-        "sentence-transformers/all-MiniLM-L6-v2"
-    )
-
-embedding_model = load_embedding_model()
 
 # =========================================================
-# LOAD FAISS DATABASE
+# LOAD DATABASE
 # =========================================================
 
 @st.cache_resource
@@ -112,34 +79,101 @@ def load_database():
 
     return index, metadata
 
+
 index, metadata = load_database()
 
+
 # =========================================================
-# SIDEBAR
+# SIDEBAR STATUS
 # =========================================================
 
 st.sidebar.success("✅ FAISS Database Loaded")
 
 st.sidebar.success(
-    f"📚 Engineering Chunks: {index.ntotal}"
+    f"📚 Engineering Chunks: {len(metadata)}"
 )
 
-# =========================================================
-# GEMINI MODEL
-# =========================================================
-
-llm = ChatGoogleGenerativeAI(
-    model="gemini-2.5-flash",
-    temperature=0.2
+st.sidebar.info(
+    f"📐 Embedding Dimension: {index.d}"
 )
 
+
 # =========================================================
-# RETRIEVAL FUNCTION
+# LOAD EMBEDDING MODEL
+# =========================================================
+
+@st.cache_resource
+def load_embedding_model():
+
+    # 384 dimension
+    if index.d == 384:
+
+        model_name = "sentence-transformers/all-MiniLM-L6-v2"
+
+    # 768 dimension
+    elif index.d == 768:
+
+        model_name = "sentence-transformers/all-mpnet-base-v2"
+
+    else:
+
+        model_name = "sentence-transformers/all-mpnet-base-v2"
+
+    st.sidebar.success(
+        f"🧠 Embedding Model Loaded"
+    )
+
+    return SentenceTransformer(model_name)
+
+
+embedding_model = load_embedding_model()
+
+
+# =========================================================
+# GEMINI API KEY
+# =========================================================
+
+st.markdown("## 🔑 Enter Gemini API Key")
+
+api_key = st.text_input(
+    "Gemini API Key",
+    type="password"
+)
+
+if not api_key:
+
+    st.warning("Please enter Gemini API Key")
+    st.stop()
+
+
+# =========================================================
+# CONNECT GEMINI
+# =========================================================
+
+try:
+
+    client = genai.Client(
+        api_key=api_key
+    )
+
+    st.sidebar.success("✅ Gemini API Connected")
+
+except Exception as e:
+
+    st.error(f"API Error: {e}")
+    st.stop()
+
+
+# =========================================================
+# RETRIEVE DOCUMENTS
 # =========================================================
 
 def retrieve_documents(query, top_k=5):
 
-    query_embedding = embedding_model.encode([query])
+    query_embedding = embedding_model.encode(
+        [query],
+        convert_to_numpy=True
+    )
 
     query_embedding = np.array(
         query_embedding,
@@ -185,156 +219,146 @@ def retrieve_documents(query, top_k=5):
 
     return retrieved_chunks
 
+
 # =========================================================
-# PROMPT BUILDER
+# PROMPT TEMPLATE
 # =========================================================
 
-def build_prompt(query, context):
+def build_prompt(question, retrieved_chunks):
+
+    context = "\n\n".join(retrieved_chunks)
 
     prompt = f"""
-You are an expert Motorsport Engineering AI Assistant.
+You are an expert Motorsport Engineering AI Assistant specialized in:
 
-You help students participating in:
-- Formula SAE
+- Formula Student
 - Baja SAE
 - Formula Bharat
-- Electric SAE
-- Go-Kart competitions
-
-You specialize in:
+- EV Race Cars
 - Chassis Design
-- Suspension Design
-- Steering Systems
+- Suspension
 - Braking Systems
-- Aerodynamics
+- Steering Systems
 - Vehicle Dynamics
+- Aerodynamics
 - Powertrain
-- CAD / CAE
-- FEA / CFD
+- CAD & CAE
+- FEA & CFD
 - Manufacturing
 - Materials Engineering
 
-==================================================
-IMPORTANT INSTRUCTIONS
-==================================================
+Your purpose is to help engineering students design and build SAE competition vehicles.
 
-1. Give practical engineering guidance.
+Use ONLY the provided engineering knowledge context.
 
-2. Explain concepts in student-friendly language.
+If information exists in the context:
+- Explain clearly
+- Give engineering reasoning
+- Include formulas if needed
+- Give practical SAE-level recommendations
+- Mention design tradeoffs
+- Keep answers student-friendly but technically strong
 
-3. Use engineering terminology.
-
-4. Give real-world SAE recommendations.
-
-5. Mention:
-   - manufacturability
-   - safety
-   - lightweight design
-   - reliability
-   - cost effectiveness
-
-6. If formulas are used:
-   - explain variables
-   - explain meaning
-   - explain application
-
-7. Use ONLY the engineering knowledge provided below.
+If information is not available in context:
+Say:
+"Relevant engineering data was not found in the knowledge base."
 
 ==================================================
-ENGINEERING KNOWLEDGE
-==================================================
+
+ENGINEERING KNOWLEDGE:
 
 {context}
 
 ==================================================
-QUESTION
+
+QUESTION:
+{question}
+
 ==================================================
 
-{query}
-
-==================================================
-ENGINEERING ANSWER
-==================================================
+ANSWER:
 """
 
     return prompt
 
-# =========================================================
-# CHAT HISTORY
-# =========================================================
-
-if "chat_history" not in st.session_state:
-
-    st.session_state.chat_history = []
 
 # =========================================================
-# CHAT INPUT
+# QUESTION INPUT
 # =========================================================
 
-query = st.chat_input(
-    "💬 Ask your Motorsport Engineering question..."
+st.markdown("## Ask Your Engineering Question")
+
+question = st.text_area(
+    "",
+    placeholder="Example: Which braking system is best for Formula Student EV?"
 )
 
-# =========================================================
-# PROCESS QUERY
-# =========================================================
-
-if query:
-
-    with st.spinner(
-        "🔍 Searching engineering database..."
-    ):
-
-        retrieved_chunks = retrieve_documents(
-            query,
-            top_k=5
-        )
-
-        context = "\n\n".join(
-            retrieved_chunks
-        )
-
-        prompt = build_prompt(
-            query,
-            context
-        )
-
-    with st.spinner(
-        "🤖 Generating engineering answer..."
-    ):
-
-        response = llm.invoke(prompt)
-
-        answer = response.content
-
-    st.session_state.chat_history.append(
-        (query, answer, retrieved_chunks)
-    )
 
 # =========================================================
-# DISPLAY CHAT
+# GENERATE ANSWER
 # =========================================================
 
-for q, a, chunks in st.session_state.chat_history:
+if st.button("Generate Engineering Answer"):
 
-    with st.chat_message("user"):
+    if question.strip() == "":
 
-        st.write(q)
+        st.warning("Please enter a question.")
 
-    with st.chat_message("assistant"):
+    else:
 
-        st.write(a)
+        with st.spinner("Generating engineering answer..."):
 
-        with st.expander(
-            "📚 Retrieved Engineering Chunks"
-        ):
+            try:
 
-            for i, chunk in enumerate(chunks[:3]):
+                # =========================================
+                # RETRIEVE CHUNKS
+                # =========================================
 
-                st.markdown(
-                    f"### Chunk {i+1}"
+                retrieved_chunks = retrieve_documents(
+                    question,
+                    top_k=5
                 )
 
-                st.write(chunk)
+                # =========================================
+                # BUILD PROMPT
+                # =========================================
 
-                st.markdown("---")
+                prompt = build_prompt(
+                    question,
+                    retrieved_chunks
+                )
+
+                # =========================================
+                # GEMINI RESPONSE
+                # =========================================
+
+                response = client.models.generate_content(
+                    model="gemini-2.5-flash",
+                    contents=prompt
+                )
+
+                answer = response.text
+
+                # =========================================
+                # DISPLAY ANSWER
+                # =========================================
+
+                st.markdown("## Engineering Answer")
+
+                st.write(answer)
+
+                # =========================================
+                # SHOW RETRIEVED CHUNKS
+                # =========================================
+
+                with st.expander("Retrieved Engineering Knowledge"):
+
+                    for i, chunk in enumerate(retrieved_chunks):
+
+                        st.markdown(f"### Chunk {i+1}")
+
+                        st.write(chunk[:2000])
+
+            except Exception as e:
+
+                st.error(f"Error: {e}")
