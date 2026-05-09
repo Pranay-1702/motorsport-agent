@@ -4,8 +4,7 @@ import pickle
 import numpy as np
 import os
 import gdown
-
-from google import genai
+import google.generativeai as genai
 
 # =====================================================
 # PAGE CONFIG
@@ -24,7 +23,7 @@ FAISS_FILE_ID = "1qDBPT1D2OgAVtDmx6aRfwb46Y3vDlRMs"
 METADATA_FILE_ID = "1YS-isyzMNxFgcbVIKcku2KO3pKgaTrwe"
 
 # =====================================================
-# DOWNLOAD FILES FROM GOOGLE DRIVE
+# DOWNLOAD DATABASE FILES
 # =====================================================
 
 if not os.path.exists("final_faiss.index"):
@@ -48,7 +47,7 @@ if not os.path.exists("metadata.pkl"):
         )
 
 # =====================================================
-# LOAD FAISS DATABASE
+# LOAD DATABASE
 # =====================================================
 
 index = faiss.read_index("final_faiss.index")
@@ -66,7 +65,7 @@ st.sidebar.success("FAISS Database Loaded")
 st.sidebar.success(f"Vectors Loaded: {index.ntotal}")
 
 # =====================================================
-# GEMINI API SECTION
+# GEMINI API KEY
 # =====================================================
 
 st.sidebar.subheader("Gemini API Key")
@@ -79,19 +78,18 @@ api_key = st.sidebar.text_input(
 api_connected = False
 
 # =====================================================
-# CONNECT BUTTON
+# CONNECT API
 # =====================================================
 
 if st.sidebar.button("Connect API"):
 
     try:
 
-        client = genai.Client(api_key=api_key)
+        genai.configure(api_key=api_key)
 
-        test = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents="hello"
-        )
+        model = genai.GenerativeModel("gemini-2.5-flash")
+
+        response = model.generate_content("hello")
 
         st.session_state["api_key"] = api_key
 
@@ -109,8 +107,12 @@ if st.sidebar.button("Connect API"):
 
 if "api_key" in st.session_state:
 
-    client = genai.Client(
+    genai.configure(
         api_key=st.session_state["api_key"]
+    )
+
+    model = genai.GenerativeModel(
+        "gemini-2.5-flash"
     )
 
     api_connected = True
@@ -138,7 +140,7 @@ st.markdown("""
 """)
 
 # =====================================================
-# USER QUESTION
+# QUESTION INPUT
 # =====================================================
 
 question = st.text_area(
@@ -150,27 +152,25 @@ question = st.text_area(
 # EMBEDDING FUNCTION
 # =====================================================
 
-def get_query_embedding(client, text):
+def get_query_embedding(text):
 
-    response = client.models.embed_content(
-        model="models/text-embedding-004",
-        contents=[text]
+    result = genai.embed_content(
+        model="models/embedding-001",
+        content=text,
+        task_type="retrieval_query"
     )
 
-    embedding = response.embeddings[0].values
+    embedding = result["embedding"]
 
     return np.array([embedding], dtype=np.float32)
 
 # =====================================================
-# SEARCH DOCUMENTS
+# SEARCH FUNCTION
 # =====================================================
 
-def search_documents(client, query, top_k=5):
+def search_documents(query, top_k=5):
 
-    query_embedding = get_query_embedding(
-        client,
-        query
-    )
+    query_embedding = get_query_embedding(query)
 
     distances, indices = index.search(
         query_embedding,
@@ -201,32 +201,33 @@ def search_documents(client, query, top_k=5):
 # GENERATE ANSWER
 # =====================================================
 
-def generate_answer(client, question, context):
+def generate_answer(question, context):
 
     engineering_prompt = f"""
-You are an expert AI Motorsport Engineering Assistant.
+You are an expert Motorsport Engineering AI Assistant.
 
 You help students participating in:
+
 - Formula SAE
 - Baja SAE
 - Formula Student
 
-Your job is to provide:
-- Engineering explanations
-- Practical design guidance
-- Real-world motorsport knowledge
-- SAE vehicle design suggestions
-- Manufacturing recommendations
-- Component selection guidance
-- CAD / CAE / FEA / CFD support
-- Vehicle dynamics explanations
+You provide:
+- Practical engineering guidance
+- Vehicle design support
+- Chassis recommendations
+- Suspension tuning advice
+- Braking system knowledge
+- Aerodynamic concepts
+- Manufacturing guidance
+- CAD / CAE / CFD support
+- FEA recommendations
 
-IMPORTANT RULES:
-- Use ONLY the engineering knowledge provided below.
-- If information is insufficient, clearly say so.
-- Explain answers in student-friendly language.
-- Give practical engineering guidance.
-- Be detailed and technical when necessary.
+IMPORTANT:
+- Use ONLY the provided engineering knowledge.
+- Give detailed and student-friendly answers.
+- Explain concepts clearly.
+- Give practical real-world SAE guidance.
 
 ==================================================
 ENGINEERING KNOWLEDGE
@@ -245,9 +246,8 @@ ENGINEERING ANSWER
 ==================================================
 """
 
-    response = client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=engineering_prompt
+    response = model.generate_content(
+        engineering_prompt
     )
 
     return response.text
@@ -269,13 +269,12 @@ if st.button("Generate Engineering Answer"):
     else:
 
         # =============================================
-        # SEARCH
+        # SEARCH DATABASE
         # =============================================
 
         with st.spinner("Searching engineering database..."):
 
             retrieved_chunks = search_documents(
-                client,
                 question,
                 top_k=5
             )
@@ -283,19 +282,18 @@ if st.button("Generate Engineering Answer"):
             context = "\n\n".join(retrieved_chunks)
 
         # =============================================
-        # GENERATE RESPONSE
+        # GENERATE ANSWER
         # =============================================
 
         with st.spinner("Generating engineering answer..."):
 
             answer = generate_answer(
-                client,
                 question,
                 context
             )
 
         # =============================================
-        # SHOW ANSWER
+        # DISPLAY ANSWER
         # =============================================
 
         st.subheader("Engineering Answer")
