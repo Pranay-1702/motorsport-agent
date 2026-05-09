@@ -7,22 +7,29 @@ import gdown
 
 from google import genai
 
-# ==========================================
+# =====================================================
+# PAGE CONFIG
+# =====================================================
+
+st.set_page_config(
+    page_title="Motorsport RAG Agent",
+    page_icon="🏎️",
+    layout="wide"
+)
+
+# =====================================================
 # GOOGLE DRIVE FILE IDS
-# ==========================================
+# =====================================================
 
-FAISS_FILE_ID = "1qDBPT1D2OgAVtDmx6aRFwb46Y3vDLRMs"
-
+FAISS_FILE_ID = "1qDBPT1D2OgAVtDmx6aRfwb46Y3vDlRMs"
 METADATA_FILE_ID = "1YS-isyzMNxFgcbVIKcku2KO3pKgaTrwe"
 
-# ==========================================
-# DOWNLOAD VECTOR DATABASE
-# ==========================================
+# =====================================================
+# DOWNLOAD DATABASE FILES
+# =====================================================
 
 if not os.path.exists("final_faiss.index"):
-
     with st.spinner("Downloading FAISS Database..."):
-
         gdown.download(
             id=FAISS_FILE_ID,
             output="final_faiss.index",
@@ -30,299 +37,225 @@ if not os.path.exists("final_faiss.index"):
         )
 
 if not os.path.exists("metadata.pkl"):
-
-    with st.spinner("Downloading Metadata Database..."):
-
+    with st.spinner("Downloading Metadata..."):
         gdown.download(
             id=METADATA_FILE_ID,
             output="metadata.pkl",
             quiet=False
         )
 
-# ==========================================
-# PAGE CONFIG
-# ==========================================
-
-st.set_page_config(
-    page_title="Motorsport Engineering RAG",
-    page_icon="🏎",
-    layout="wide"
-)
-
-# ==========================================
-# CUSTOM DARK UI
-# ==========================================
-
-st.markdown("""
-<style>
-
-.stApp {
-    background-color: #0E1117;
-}
-
-h1, h2, h3, h4, h5 {
-    color: white !important;
-}
-
-p, div, label, span {
-    color: white !important;
-}
-
-section[data-testid="stSidebar"] {
-    background-color: #161A23;
-}
-
-.stTextInput input {
-    background-color: #1E2430 !important;
-    color: white !important;
-    border-radius: 10px;
-    border: 1px solid #00AEEF;
-}
-
-.stTextArea textarea {
-    background-color: #1E2430 !important;
-    color: white !important;
-    border-radius: 10px;
-    border: 1px solid #00AEEF;
-    font-size: 18px !important;
-}
-
-.stButton button {
-    background-color: #00AEEF !important;
-    color: white !important;
-    border-radius: 10px;
-    border: none;
-    height: 50px;
-    width: 100%;
-    font-size: 18px;
-    font-weight: bold;
-}
-
-</style>
-""", unsafe_allow_html=True)
-
-# ==========================================
-# LOAD VECTOR DATABASE
-# ==========================================
+# =====================================================
+# LOAD DATABASE
+# =====================================================
 
 @st.cache_resource
-def load_database():
+def load_rag_database():
+    index = faiss.read_index("final_faiss.index")
 
-    index = faiss.read_index(
-        "final_faiss.index"
-    )
-
-    with open(
-        "metadata.pkl",
-        "rb"
-    ) as f:
-
+    with open("metadata.pkl", "rb") as f:
         metadata = pickle.load(f)
 
     return index, metadata
 
-index, metadata = load_database()
+index, metadata = load_rag_database()
 
-# ==========================================
-# SESSION STATE
-# ==========================================
-
-if "connected" not in st.session_state:
-    st.session_state.connected = False
-
-if "client" not in st.session_state:
-    st.session_state.client = None
-
-# ==========================================
+# =====================================================
 # SIDEBAR
-# ==========================================
+# =====================================================
 
-with st.sidebar:
+st.sidebar.title("🏎️ Motorsport RAG Agent")
 
-    st.title("🏎 Motorsport RAG")
+st.sidebar.success("FAISS Database Loaded")
+st.sidebar.success(f"Vectors Loaded: {index.ntotal}")
 
-    st.success(
-        f"FAISS Loaded: {index.ntotal} vectors"
-    )
+# =====================================================
+# GEMINI API SECTION
+# =====================================================
 
-    st.success("Engineering PDFs Loaded")
-    st.success("Excel Knowledge Loaded")
-    st.success("Mechanical RAG Active")
+st.sidebar.subheader("Gemini API Key")
 
-    st.markdown("---")
+api_key = st.sidebar.text_input(
+    "Enter Gemini API Key",
+    type="password"
+)
 
-    api_key = st.text_input(
-        "Enter Gemini API Key",
-        type="password"
-    )
+connect_btn = st.sidebar.button("Connect API")
 
-    if st.button("Connect Gemini API"):
+api_connected = False
 
-        try:
+if connect_btn:
 
-            client = genai.Client(
-                api_key=api_key
-            )
+    try:
+        client = genai.Client(api_key=api_key)
 
-            response = client.models.generate_content(
-                model="gemini-2.5-flash",
-                contents="Reply OK"
-            )
+        test_response = client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents="hello"
+        )
 
-            st.session_state.client = client
-            st.session_state.connected = True
+        st.sidebar.success("Gemini Connected Successfully")
+        api_connected = True
 
-            st.success(
-                "Gemini Connected Successfully"
-            )
+    except Exception as e:
+        st.sidebar.error(f"API Error: {e}")
 
-        except Exception as e:
+# =====================================================
+# MAIN UI
+# =====================================================
 
-            st.error(
-                "Invalid API Key"
-            )
-
-# ==========================================
-# MAIN PAGE
-# ==========================================
-
-st.title("🏎 AI Motorsport Engineering RAG")
+st.title("🏎️ Motorsport Engineering RAG Assistant")
 
 st.markdown("""
-### Engineering Knowledge Assistant using:
-- FAISS Vector Search
-- Engineering PDFs
-- Motorsport Knowledge
-- Excel Cost Reports
-- Gemini AI
+Ask engineering questions related to:
+
+- Motorsport
+- Formula Racing
+- Aerodynamics
+- Suspension
+- Chassis
+- Powertrain
+- Mechanical Design
+- Vehicle Dynamics
+- Materials
+- CAD & Manufacturing
 """)
 
 query = st.text_area(
-    "Ask Engineering Questions",
-    height=220,
-    placeholder="""
-Examples:
-- Best material for gokart chassis
-- Explain finite element analysis
-- Explain Formula Student aerodynamics
-- Difference between MIG and TIG welding
-"""
+    "Ask Your Engineering Question",
+    height=150
 )
 
-# ==========================================
-# RETRIEVAL FUNCTION
-# ==========================================
+ask_button = st.button("Generate Answer")
 
-def retrieve_chunks(query, top_k=5):
+# =====================================================
+# EMBEDDING + RETRIEVAL
+# =====================================================
 
-    embed_response = st.session_state.client.models.embed_content(
+def get_query_embedding(client, text):
+
+    response = client.models.embed_content(
         model="gemini-embedding-001",
-        contents=query
+        contents=text
     )
 
-    query_embedding = np.array(
-        [embed_response.embeddings[0].values],
-        dtype=np.float32
-    )
+    embedding = response.embeddings[0].values
 
-    distances, indices = index.search(
-        query_embedding,
-        top_k
-    )
+    return np.array([embedding], dtype=np.float32)
 
-    retrieved_chunks = []
+# =====================================================
+# GENERATE RESPONSE
+# =====================================================
 
-    for idx in indices[0]:
+if ask_button:
 
-        if idx < len(metadata):
+    if not api_key:
+        st.warning("Please Enter Gemini API Key")
+        st.stop()
 
-            retrieved_chunks.append(
-                metadata[idx]
+    try:
+
+        client = genai.Client(api_key=api_key)
+
+        with st.spinner("Generating Engineering Response..."):
+
+            # =========================================
+            # QUERY EMBEDDING
+            # =========================================
+
+            query_embedding = get_query_embedding(
+                client,
+                query
             )
 
-    return retrieved_chunks
+            # =========================================
+            # VECTOR SEARCH
+            # =========================================
 
-# ==========================================
-# GENERATE ENGINEERING ANSWER
-# ==========================================
+            k = 5
 
-if st.button("Generate Engineering Answer"):
-
-    if not st.session_state.connected:
-
-        st.error(
-            "Please Connect Gemini API"
-        )
-
-    elif query.strip() == "":
-
-        st.error(
-            "Please Enter Question"
-        )
-
-    else:
-
-        with st.spinner(
-            "Searching Engineering Knowledge Base..."
-        ):
-
-            chunks = retrieve_chunks(query)
-
-            context = "\n\n".join(
-                [
-                    chunk["content"][:2000]
-                    for chunk in chunks
-                ]
+            distances, indices = index.search(
+                query_embedding,
+                k
             )
 
-        with st.spinner(
-            "Generating Engineering Response..."
-        ):
+            retrieved_chunks = []
+
+            for idx in indices[0]:
+
+                if idx < len(metadata):
+
+                    chunk = metadata[idx]
+
+                    if isinstance(chunk, dict):
+
+                        retrieved_chunks.append(
+                            chunk.get("text", "")
+                        )
+
+                    else:
+                        retrieved_chunks.append(str(chunk))
+
+            # =========================================
+            # CONTEXT BUILDING
+            # =========================================
+
+            context = "\n\n".join(retrieved_chunks)
+
+            # =========================================
+            # FINAL PROMPT
+            # =========================================
 
             final_prompt = f"""
 You are an expert Motorsport and Mechanical Engineering AI Assistant.
 
-Use ONLY the engineering context below.
+Use the retrieved engineering knowledge below to answer the user's question.
 
-ENGINEERING CONTEXT:
+========================
+ENGINEERING KNOWLEDGE
+========================
+
 {context}
 
-QUESTION:
+========================
+USER QUESTION
+========================
+
 {query}
 
-Give detailed technical engineering answer.
+========================
+ANSWER
+========================
 """
 
-            response = st.session_state.client.models.generate_content(
-                model="gemini-2.5-flash",
+            # =========================================
+            # GEMINI RESPONSE
+            # =========================================
+
+            response = client.models.generate_content(
+                model="gemini-2.0-flash",
                 contents=final_prompt
             )
 
-            st.markdown("## Engineering Answer")
+            # =========================================
+            # DISPLAY ANSWER
+            # =========================================
 
-            st.success(
-                response.text
-            )
+            st.subheader("Engineering Answer")
 
-            st.markdown("---")
+            st.write(response.text)
 
-            st.markdown(
-                "## Retrieved Engineering Sources"
-            )
+            # =========================================
+            # SHOW RETRIEVED CHUNKS
+            # =========================================
 
-            for i, chunk in enumerate(chunks):
+            with st.expander("Retrieved Engineering Chunks"):
 
-                st.markdown(
-                    f"""
-### Source {i+1}
+                for i, chunk in enumerate(retrieved_chunks):
 
-File:
-{chunk.get('file_name', 'Unknown')}
+                    st.markdown(f"### Chunk {i+1}")
 
-Page:
-{chunk.get('page', 'N/A')}
+                    st.write(chunk[:1500])
 
-Preview:
-{chunk['content'][:700]}
-"""
-                )
+    except Exception as e:
+
+        st.error(f"Error: {e}")
