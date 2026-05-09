@@ -12,7 +12,7 @@ from google import genai
 # =====================================================
 
 st.set_page_config(
-    page_title="Motorsport RAG Agent",
+    page_title="Motorsport SAE RAG Assistant",
     page_icon="🏎️",
     layout="wide"
 )
@@ -29,7 +29,9 @@ METADATA_FILE_ID = "1YS-isyzMNxFgcbVIKcku2KO3pKgaTrwe"
 # =====================================================
 
 if not os.path.exists("final_faiss.index"):
+
     with st.spinner("Downloading FAISS Database..."):
+
         gdown.download(
             id=FAISS_FILE_ID,
             output="final_faiss.index",
@@ -37,7 +39,9 @@ if not os.path.exists("final_faiss.index"):
         )
 
 if not os.path.exists("metadata.pkl"):
-    with st.spinner("Downloading Metadata..."):
+
+    with st.spinner("Downloading Metadata File..."):
+
         gdown.download(
             id=METADATA_FILE_ID,
             output="metadata.pkl",
@@ -50,6 +54,7 @@ if not os.path.exists("metadata.pkl"):
 
 @st.cache_resource
 def load_rag_database():
+
     index = faiss.read_index("final_faiss.index")
 
     with open("metadata.pkl", "rb") as f:
@@ -63,7 +68,7 @@ index, metadata = load_rag_database()
 # SIDEBAR
 # =====================================================
 
-st.sidebar.title("🏎️ Motorsport RAG Agent")
+st.sidebar.title("🏎️ Motorsport SAE RAG")
 
 st.sidebar.success("FAISS Database Loaded")
 st.sidebar.success(f"Vectors Loaded: {index.ntotal}")
@@ -81,11 +86,10 @@ api_key = st.sidebar.text_input(
 
 connect_btn = st.sidebar.button("Connect API")
 
-api_connected = False
-
 if connect_btn:
 
     try:
+
         client = genai.Client(api_key=api_key)
 
         test_response = client.models.generate_content(
@@ -94,9 +98,9 @@ if connect_btn:
         )
 
         st.sidebar.success("Gemini Connected Successfully")
-        api_connected = True
 
     except Exception as e:
+
         st.sidebar.error(f"API Error: {e}")
 
 # =====================================================
@@ -106,35 +110,46 @@ if connect_btn:
 st.title("🏎️ Motorsport Engineering RAG Assistant")
 
 st.markdown("""
-Ask engineering questions related to:
+### AI Engineering Mentor for:
 
-- Motorsport
-- Formula Racing
-- Aerodynamics
+- Formula Student (FSAE)
+- Formula Bharat
+- Baja SAE
+- Go-Karts
+- EV Race Cars
+- Motorsport Vehicles
+- Mechanical Design Projects
+
+Ask questions related to:
+
+- Chassis Design
 - Suspension
-- Chassis
-- Powertrain
-- Mechanical Design
+- Braking Systems
+- Aerodynamics
+- Steering
 - Vehicle Dynamics
+- Powertrain
+- CAD & CAE
+- Manufacturing
 - Materials
-- CAD & Manufacturing
+- FEA & CFD
 """)
 
 query = st.text_area(
     "Ask Your Engineering Question",
-    height=150
+    height=180
 )
 
-ask_button = st.button("Generate Answer")
+generate_btn = st.button("Generate Engineering Answer")
 
 # =====================================================
-# EMBEDDING + RETRIEVAL
+# EMBEDDING FUNCTION
 # =====================================================
 
 def get_query_embedding(client, text):
 
     response = client.models.embed_content(
-        model="gemini-embedding-001",
+        model="models/embedding-001",
         contents=text
     )
 
@@ -146,9 +161,10 @@ def get_query_embedding(client, text):
 # GENERATE RESPONSE
 # =====================================================
 
-if ask_button:
+if generate_btn:
 
     if not api_key:
+
         st.warning("Please Enter Gemini API Key")
         st.stop()
 
@@ -156,7 +172,7 @@ if ask_button:
 
         client = genai.Client(api_key=api_key)
 
-        with st.spinner("Generating Engineering Response..."):
+        with st.spinner("Analyzing Engineering Knowledge Base..."):
 
             # =========================================
             # QUERY EMBEDDING
@@ -178,6 +194,10 @@ if ask_button:
                 k
             )
 
+            # =========================================
+            # RETRIEVE CHUNKS
+            # =========================================
+
             retrieved_chunks = []
 
             for idx in indices[0]:
@@ -186,45 +206,147 @@ if ask_button:
 
                     chunk = metadata[idx]
 
+                    chunk_text = ""
+
+                    # ---------------------------------
+                    # CASE 1 : DICTIONARY
+                    # ---------------------------------
+
                     if isinstance(chunk, dict):
 
-                        retrieved_chunks.append(
-                            chunk.get("text", "")
-                        )
+                        if "text" in chunk:
+                            chunk_text = chunk["text"]
+
+                        elif "content" in chunk:
+                            chunk_text = chunk["content"]
+
+                        elif "page_content" in chunk:
+                            chunk_text = chunk["page_content"]
+
+                        elif "chunk" in chunk:
+                            chunk_text = chunk["chunk"]
+
+                        else:
+                            chunk_text = str(chunk)
+
+                    # ---------------------------------
+                    # CASE 2 : STRING
+                    # ---------------------------------
+
+                    elif isinstance(chunk, str):
+
+                        chunk_text = chunk
+
+                    # ---------------------------------
+                    # CASE 3 : OTHER
+                    # ---------------------------------
 
                     else:
-                        retrieved_chunks.append(str(chunk))
+
+                        chunk_text = str(chunk)
+
+                    if chunk_text.strip():
+
+                        retrieved_chunks.append(chunk_text)
 
             # =========================================
             # CONTEXT BUILDING
             # =========================================
 
-            context = "\n\n".join(retrieved_chunks)
+            context = "\n\n".join(retrieved_chunks[:5])
+
+            if context.strip() == "":
+
+                context = "No engineering context retrieved."
 
             # =========================================
             # FINAL PROMPT
             # =========================================
 
             final_prompt = f"""
-You are an expert Motorsport and Mechanical Engineering AI Assistant.
+You are an expert Motorsport, Formula Student (FSAE), Baja SAE, and Mechanical Engineering Mentor AI.
 
-Use the retrieved engineering knowledge below to answer the user's question.
+Your role is to help engineering students design, analyze, manufacture, and improve SAE competition vehicles.
 
-========================
-ENGINEERING KNOWLEDGE
-========================
+You must answer like an experienced SAE mentor and race vehicle engineer.
+
+==================================================
+IMPORTANT RESPONSE RULES
+==================================================
+
+1. Explain answers in simple engineering language suitable for students.
+
+2. Give practical and industry-standard solutions.
+
+3. Focus on:
+   - FSAE
+   - Formula Bharat
+   - Baja SAE
+   - Go-karts
+   - Electric SAE vehicles
+   - Motorsport engineering
+
+4. When applicable include:
+   - Recommended materials
+   - Design considerations
+   - Manufacturing methods
+   - Safety considerations
+   - Performance impact
+   - Advantages and disadvantages
+   - Real-world SAE practices
+
+5. If the question is related to:
+   - Brakes
+   - Suspension
+   - Chassis
+   - Aerodynamics
+   - Steering
+   - Powertrain
+   - Vehicle dynamics
+   - CAD
+   - Manufacturing
+
+   then provide engineering reasoning step-by-step.
+
+6. If formulas are needed:
+   - Explain formulas clearly
+   - Explain variables
+   - Explain why formula is used
+
+7. Always encourage good engineering practices:
+   - lightweight design
+   - reliability
+   - manufacturability
+   - safety
+   - serviceability
+
+8. If retrieved context is weak or incomplete:
+   - still answer using motorsport engineering knowledge
+   - do NOT say "context is empty"
+
+9. Keep answers educational, practical, and detailed.
+
+10. If possible, provide:
+   - Recommended SAE design approaches
+   - Typical competition practices
+   - Cost-effective solutions for students
+   - Common mistakes to avoid
+
+==================================================
+RETRIEVED ENGINEERING KNOWLEDGE
+==================================================
 
 {context}
 
-========================
-USER QUESTION
-========================
+==================================================
+STUDENT QUESTION
+==================================================
 
 {query}
 
-========================
-ANSWER
-========================
+==================================================
+ENGINEERING ANSWER
+==================================================
 """
 
             # =========================================
@@ -248,13 +370,19 @@ ANSWER
             # SHOW RETRIEVED CHUNKS
             # =========================================
 
-            with st.expander("Retrieved Engineering Chunks"):
+            with st.expander("Retrieved Engineering Knowledge"):
 
-                for i, chunk in enumerate(retrieved_chunks):
+                if len(retrieved_chunks) == 0:
 
-                    st.markdown(f"### Chunk {i+1}")
+                    st.warning("No chunks retrieved from database.")
 
-                    st.write(chunk[:1500])
+                else:
+
+                    for i, chunk in enumerate(retrieved_chunks):
+
+                        st.markdown(f"### Chunk {i+1}")
+
+                        st.write(chunk[:2000])
 
     except Exception as e:
 
