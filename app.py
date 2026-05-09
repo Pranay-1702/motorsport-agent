@@ -12,10 +12,11 @@ from google import genai
 # ==========================================
 
 FAISS_FILE_ID = "1qDBPT1D2OgAVtDmx6aRFwb46Y3vDLRMs"
+
 METADATA_FILE_ID = "1YS-isyzMNxFgcbVIKcku2KO3pKgaTrwe"
 
 # ==========================================
-# DOWNLOAD DATABASE FILES
+# DOWNLOAD VECTOR DATABASE
 # ==========================================
 
 if not os.path.exists("final_faiss.index"):
@@ -23,18 +24,18 @@ if not os.path.exists("final_faiss.index"):
     with st.spinner("Downloading FAISS Database..."):
 
         gdown.download(
-            f"https://drive.google.com/uc?id={FAISS_FILE_ID}",
-            "final_faiss.index",
+            id=FAISS_FILE_ID,
+            output="final_faiss.index",
             quiet=False
         )
 
 if not os.path.exists("metadata.pkl"):
 
-    with st.spinner("Downloading Metadata..."):
+    with st.spinner("Downloading Metadata Database..."):
 
         gdown.download(
-            f"https://drive.google.com/uc?id={METADATA_FILE_ID}",
-            "metadata.pkl",
+            id=METADATA_FILE_ID,
+            output="metadata.pkl",
             quiet=False
         )
 
@@ -49,7 +50,7 @@ st.set_page_config(
 )
 
 # ==========================================
-# CUSTOM UI
+# CUSTOM DARK UI
 # ==========================================
 
 st.markdown("""
@@ -59,11 +60,11 @@ st.markdown("""
     background-color: #0E1117;
 }
 
-h1, h2, h3, h4 {
+h1, h2, h3, h4, h5 {
     color: white !important;
 }
 
-p, div, label {
+p, div, label, span {
     color: white !important;
 }
 
@@ -74,11 +75,15 @@ section[data-testid="stSidebar"] {
 .stTextInput input {
     background-color: #1E2430 !important;
     color: white !important;
+    border-radius: 10px;
+    border: 1px solid #00AEEF;
 }
 
 .stTextArea textarea {
     background-color: #1E2430 !important;
     color: white !important;
+    border-radius: 10px;
+    border: 1px solid #00AEEF;
     font-size: 18px !important;
 }
 
@@ -86,6 +91,7 @@ section[data-testid="stSidebar"] {
     background-color: #00AEEF !important;
     color: white !important;
     border-radius: 10px;
+    border: none;
     height: 50px;
     width: 100%;
     font-size: 18px;
@@ -96,7 +102,7 @@ section[data-testid="stSidebar"] {
 """, unsafe_allow_html=True)
 
 # ==========================================
-# LOAD FAISS + METADATA
+# LOAD VECTOR DATABASE
 # ==========================================
 
 @st.cache_resource
@@ -139,9 +145,9 @@ with st.sidebar:
         f"FAISS Loaded: {index.ntotal} vectors"
     )
 
-    st.success("Engineering Knowledge Ready")
-    st.success("PDF Retrieval Active")
-    st.success("Excel Retrieval Active")
+    st.success("Engineering PDFs Loaded")
+    st.success("Excel Knowledge Loaded")
+    st.success("Mechanical RAG Active")
 
     st.markdown("---")
 
@@ -183,8 +189,8 @@ with st.sidebar:
 st.title("🏎 AI Motorsport Engineering RAG")
 
 st.markdown("""
-### AI Assistant using:
-- FAISS Vector Database
+### Engineering Knowledge Assistant using:
+- FAISS Vector Search
 - Engineering PDFs
 - Motorsport Knowledge
 - Excel Cost Reports
@@ -237,7 +243,7 @@ def retrieve_chunks(query, top_k=5):
     return retrieved_chunks
 
 # ==========================================
-# GENERATE ANSWER
+# GENERATE ENGINEERING ANSWER
 # ==========================================
 
 if st.button("Generate Engineering Answer"):
